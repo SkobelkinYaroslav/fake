@@ -34,24 +34,21 @@ func getRelativePath(path1, path2 string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	absPath2, err := filepath.Abs(path2)
 	if err != nil {
 		return "", err
 	}
-
 	// Retrieve the relative path
 	relativePath, err := filepath.Rel(filepath.Dir(absPath1), absPath2)
 	if err != nil {
 		return "", err
 	}
-
 	return relativePath, nil
 }
 
 // GetPackagePath returns the full package path from a given *ast.File.
 func GetPackagePath(fset *token.FileSet, filename string) (string, error) {
-	goModPath, err := findGoMod(filepath.Dir(filename))
+	goModPath, err := findFile(filepath.Dir(filename), "go.mod")
 	if err != nil {
 		return "", err
 	}
@@ -71,19 +68,19 @@ func GetPackagePath(fset *token.FileSet, filename string) (string, error) {
 	return path.Join(modulePath, pkgPath), nil
 }
 
-// findGoMod searches for the go.mod file in the given directory and its parent directories.
-func findGoMod(dir string) (string, error) {
+// findFile searches for the go.mod file in the given directory and its parent directories.
+func findFile(childDir, filename string) (string, error) {
 	for {
-		goModPath := filepath.Join(dir, "go.mod")
+		goModPath := filepath.Join(childDir, filename)
 		if fileExists(goModPath) {
 			return goModPath, nil
 		}
 
-		parentDir := filepath.Dir(dir)
-		if parentDir == dir {
+		parentDir := filepath.Dir(childDir)
+		if parentDir == childDir {
 			break
 		}
-		dir = parentDir
+		childDir = parentDir
 	}
 
 	return "", fmt.Errorf("go.mod file not found")
@@ -169,13 +166,9 @@ func generateOutputFile(input, output string) *os.File {
 
 func Run(inputs []string, output string, ignore []string) {
 	gen := NewGenerator("mocks")
-	var filenames []string
-	for _, input := range inputs {
-		files, err := ListGoFiles(input, append(ignore, output))
-		if err != nil {
-			log.Fatal().Msgf("error listing files: %s", err)
-		}
-		filenames = append(filenames, files...)
+	filenames, err := ListGoFiles(inputs, append(ignore, output))
+	if err != nil {
+		log.Fatal().Msgf("error listing files: %s", err)
 	}
 	if len(filenames) == 0 {
 		log.Info().Msgf("no files found, nothing to be done")
